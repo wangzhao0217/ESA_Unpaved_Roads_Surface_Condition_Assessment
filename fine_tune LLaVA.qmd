@@ -266,7 +266,7 @@ def prepare_dataset(input_base_folder, output_folder, data_types):
 
 if __name__ == "__main__":
     # input_base_folder = "./img_data/Madagascar_High/resize_50/test"
-    input_base_folder = "./img_data/Madagascar_High/resize_50_jpg/test"
+    input_base_folder = "./Examples/"
     output_folder = "prepared_datasets"
     data_types = [
         "2_category_multi_conversion",
@@ -280,7 +280,7 @@ if __name__ == "__main__":
 
 # Fine-Tuning the Model
 ```{python}
-EPOCHS = 5
+EPOCHS = 10
 Data_type = "4_category_multi_conversion"
 
 DEEPSPEED_SCRIPT = "deepspeed llava/train/train_mem.py"
@@ -467,10 +467,10 @@ set Data_type to the data type you want to generate answers for
 
 ```{python}
 import subprocess
-conditions = [ 'Fair', 'Poor', 'Bad']
+conditions = ['Good','Fair', 'Poor', 'Bad']
 Data_type = "4_category_multi_conversion"
 test_image_folder = "./Examples"
-merged_model_path ="./checkpoints/ESA_llava_VLM_4_category_multi_conversion_Ep5"
+merged_model_path ="./checkpoints/ESA_llava_VLM_4_category_multi_conversion"
 for condition in conditions:
     print(f"Generating answers for condition: {condition}")
 
@@ -620,7 +620,7 @@ for condition in conditions:
 
     file_suffix = '1' if 'single' in Data_type else '2'
     file_suffix_2 = '1st' if 'single' in Data_type else '2nd'
-    file_path = f'./answer_{file_suffix}/answers_{file_suffix_2}_{condition}_{Data_type}.json'
+    file_path = f'./answers_{file_suffix_2}_{condition}_{Data_type}.json'
     # file_path = f'./1_answer/answers_{condition}_2_{Data_type}.json'
     print(f"Analyzing file: answer_{file_suffix}/answers_{file_suffix_2}_{condition}_{Data_type}.json")
 
