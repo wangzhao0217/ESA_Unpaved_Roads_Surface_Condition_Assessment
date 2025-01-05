@@ -1,0 +1,669 @@
+---
+jupyter: python3
+---
+# This note was recreated on 11/12/2024 due to a Docker crash that caused the loss of the previous version. The author has attempted to reconstruct the notes to the best of their knowledge. However, a full test has not yet been conducted.
+
+# Preparing the Data for Fine-Tuning
+
+Four types of data are prepared for fine-tuning the model. The data types are as follows:
+
+- 2_category_multi_conversion
+- 2_category_single_conversion
+- 4_category_multi_conversion
+- 4_category_single_conversion
+
+```{python}
+Data_types = ["2_category_multi_conversion", "2_category_single_conversion", "4_category_multi_conversion", "4_category_single_conversion"]
+```
+
+
+```{python}
+import os
+import random
+import json
+import re
+from PIL import Image
+
+def to_snake_case(filename):
+    """
+    Converts a filename to snake_case by replacing spaces and special characters with underscores
+    and converting all letters to lowercase.
+    """
+    snake_case_name = re.sub(r'[\s]+', '_', filename)
+    snake_case_name = snake_case_name.lower()
+    return snake_case_name
+
+def process_and_save_local_images(input_folder, output_folder, data_type):
+    """
+    Processes images from the input folder for a specific data_type, generates JSON entries based on the data_type,
+    and saves both the processed images and the JSON dataset to the output folder.
+
+    Parameters:
+    - input_folder (str): Path to the input directory containing data_type subdirectories.
+    - output_folder (str): Path to the output directory where processed images and JSON will be saved.
+    - data_type (str): One of the four data types to process.
+    """
+    # Define paths for JSON and images
+    subset_folder = os.path.join(output_folder, data_type)
+    image_subfolder = os.path.join(subset_folder, 'images')
+
+    # Create necessary directories
+    os.makedirs(image_subfolder, exist_ok=True)
+
+    json_data_list = []
+
+    # Define properties for each data_type
+    data_type_info = {
+        "2_category_multi_conversion": {
+            "grades": ["Grade_1", "Grade_4"],
+            "multi_conversion": True,
+            "condition_mapping": {
+                'Good': "Grade_1",
+                'Fair': "Grade_1",
+                'Poor': "Grade_4",
+                'Bad': "Grade_4"
+            }
+        },
+        "2_category_single_conversion": {
+            "grades": ["Grade_1", "Grade_4"],
+            "multi_conversion": False,
+            "condition_mapping": {
+                'Good': "Grade_1",
+                'Fair': "Grade_1",
+                'Poor': "Grade_4",
+                'Bad': "Grade_4"
+            }
+        },
+        "4_category_multi_conversion": {
+            "grades": ["Grade_1", "Grade_2", "Grade_3", "Grade_4"],
+            "multi_conversion": True,
+            "condition_mapping": {
+                'Good': "Grade_1",
+                'Fair': "Grade_2",
+                'Poor': "Grade_3",
+                'Bad': "Grade_4"
+            }
+        },
+        "4_category_single_conversion": {
+            "grades": ["Grade_1", "Grade_2", "Grade_3", "Grade_4"],
+            "multi_conversion": False,
+            "condition_mapping": {
+                'Good': "Grade_1",
+                'Fair': "Grade_2",
+                'Poor': "Grade_3",
+                'Bad': "Grade_4"
+            }
+        }
+    }
+
+    # Validate data_type
+    if data_type not in data_type_info:
+        raise ValueError(f"Unsupported data_type: {data_type}")
+
+    grades = data_type_info[data_type]["grades"]
+    multi_conversion = data_type_info[data_type]["multi_conversion"]
+    condition_mapping = data_type_info[data_type]["condition_mapping"]
+
+    # Create a string of grade options for human prompts
+    if len(grades) == 2:
+        grade_options_str = ' or '.join(grades)
+    else:
+        grade_options_str = ', '.join(grades[:-1]) + ', or ' + grades[-1]
+
+    # Descriptions for multi_conversion data types
+    condition_descriptions = {
+        'Bad': {
+            "Surface Condition": "Severe wear, with significant irregularities.",
+            "Color Uniformity": "Highly non-uniform with visible discoloration.",
+            "Defects": "Widespread large cracks and potholes present."
+        },
+        'Poor': {
+            "Surface Condition": "Considerable wear, with noticeable irregularities.",
+            "Color Uniformity": "Non-uniform with some discoloration.",
+            "Defects": "Multiple cracks and rough spots present."
+        },
+        'Fair': {
+            "Surface Condition": "Moderate wear, with some irregularities that are more than minor.",
+            "Color Uniformity": "Mostly uniform but showing some visible discoloration or subtle darkening.",
+            "Defects": "Intermittent small cracks or rough spots are present but not widespread or severe."
+        },
+        'Good': {
+            "Surface Condition": "Minor wear with mostly smooth surface.",
+            "Color Uniformity": "Uniform color with no significant discoloration.",
+            "Defects": "Few or no visible defects."
+        }
+    }
+
+
+    # Define conditions
+    conditions = ['Bad', 'Poor', 'Fair', 'Good']
+
+    # Iterate through each condition folder within the data_type folder
+    for condition in conditions:
+        condition_folder = os.path.join(input_folder, condition)
+
+        # Skip if the condition folder does not exist
+        if not os.path.exists(condition_folder):
+            print(f"Warning: Condition folder '{condition_folder}' does not exist. Skipping.")
+            continue
+
+        image_files = os.listdir(condition_folder)
+        print(f"Processing Data Type: {data_type}")
+        print(f"Condition: {condition}")
+        print(f"Number of files in '{condition}' folder: {len(image_files)}")
+
+        for image_file in image_files:
+            # Filter out non-image files
+            if not image_file.lower().endswith(('.tif', '.tiff', '.jpg', '.jpeg', '.png')):
+                continue
+
+            # Convert filename to snake_case and append condition
+            snake_image_file = to_snake_case(os.path.splitext(image_file)[0])
+            snake_image_file = f"{snake_image_file}_{condition.lower()}"
+
+            image_path = os.path.join(condition_folder, image_file)
+            try:
+                image = Image.open(image_path)
+            except Exception as e:
+                print(f"Error opening image '{image_path}': {e}")
+                continue
+
+            # Save image in JPEG format within the data_type's images folder
+            image_save_path = os.path.join(image_subfolder, f"{snake_image_file}.jpg")
+            try:
+                image = image.convert('RGB')  # Ensure image is in RGB
+                image.save(image_save_path, format='JPEG')
+            except Exception as e:
+                print(f"Error saving image '{image_save_path}': {e}")
+                continue
+
+            # Determine the grade based on condition_mapping
+            grade = condition_mapping.get(condition, "Grade_Unknown")
+
+            # Generate conversation based on data_type
+            if multi_conversion:
+                # Retrieve descriptions based on condition
+                descriptions = condition_descriptions.get(condition, {})
+                description_text = "\n".join([f"{key}: {value}" for key, value in descriptions.items()])
+
+                conversation = [
+                    {
+                        "from": "human",
+                        "value": (
+                            "<image>\nThis is an image of an **unpaved road surface**. "
+                            "The edges of the image may contain black areas that are not part of the road surface. "
+                            "Please ignore these areas when assessing the condition and focus only on the road surface area visible in the image. "
+                            "Describe the surface condition of this image in the following aspects:\n"
+                            "Surface Condition\nColor Uniformity\nDefects."
+                        )
+                    },
+                    {
+                        "from": "gpt",
+                        "value": description_text
+                    },
+                    {
+                        "from": "human",
+                        "value": (
+                            f"Based on the provided description - {description_text} - please choose a surface condition grade "
+                            f"from the following options: {grade_options_str}."
+                        )
+                    },
+                    {
+                        "from": "gpt",
+                        "value": grade
+                    }
+                ]
+            else:
+                conversation = [
+                    {
+                        "from": "human",
+                        "value": (
+                            "<image>\nThis is an image of an **unpaved road surface**. "
+                            "The edges of the image may contain black areas that are not part of the road surface. "
+                            "Please ignore these areas when assessing the condition and focus only on the road surface area visible in the image. "
+                            f"Please choose a surface condition grade from the following options: {grade_options_str}."
+                        )
+                    },
+                    {
+                        "from": "gpt",
+                        "value": f"The road surface condition is {grade}"
+                    }
+                ]
+
+            # Compile JSON entry
+            json_data = {
+                "id": snake_image_file,
+                "image": f"images/{snake_image_file}.jpg",
+                "conversations": conversation
+            }
+
+            # Add to the list
+            json_data_list.append(json_data)
+
+    # Shuffle the data to ensure randomness
+    random.shuffle(json_data_list)
+
+    # Save the JSON data to a file named based on data_type
+    json_output_path = os.path.join(subset_folder, f'dataset_{data_type}.json')
+    with open(json_output_path, 'w') as json_file:
+        json.dump(json_data_list, json_file, indent=4)
+
+    print(f"Dataset for '{data_type}' saved to '{json_output_path}'.")
+
+def prepare_dataset(input_base_folder, output_folder, data_types):
+    """
+    Prepares datasets for each specified data_type by processing images and generating JSON files.
+
+    Parameters:
+    - input_base_folder (str): Path to the base input directory containing all data_type folders.
+    - output_folder (str): Path to the base output directory where datasets will be saved.
+    - data_types (list): List of data_type strings to process.
+    """
+    for data_type in data_types:
+        print(f"\nStarting processing for data_type: {data_type}")
+        process_and_save_local_images(input_base_folder, output_folder, data_type)
+        print(f"Completed processing for data_type: {data_type}")
+
+if __name__ == "__main__":
+    # input_base_folder = "./img_data/Madagascar_High/resize_50/test"
+    input_base_folder = "./img_data/Madagascar_High/resize_50_jpg/test"
+    output_folder = "prepared_datasets"
+    data_types = [
+        "2_category_multi_conversion",
+        "2_category_single_conversion",
+        "4_category_multi_conversion",
+        "4_category_single_conversion"
+    ]
+
+    prepare_dataset(input_base_folder, output_folder, data_types)
+```
+
+# Fine-Tuning the Model
+```{python}
+EPOCHS = 5
+Data_type = "4_category_multi_conversion"
+
+DEEPSPEED_SCRIPT = "deepspeed llava/train/train_mem.py"
+DEEPSPEED_JSON = "./scripts/zero3.json"
+MODEL_NAME = "liuhaotian/llava-v1.5-7b"
+DATA_PATH = f"./prepared_datasets/{Data_type}/dataset_{Data_type}.json"
+IMAGE_FOLDER = f"./prepared_datasets/{Data_type}/"
+VISION_TOWER = "openai/clip-vit-large-patch14-336"
+FT_MODEL_NAME = f"llava_VLM_{Data_type}_Ep{EPOCHS}"
+OUTPUT_DIR = f"./checkpoints/{FT_MODEL_NAME}"
+
+# Command to run the script
+finetune_script = f"""
+{DEEPSPEED_SCRIPT} \
+--lora_enable True --lora_r 128 --lora_alpha 256 --mm_projector_lr 2e-5 \
+--deepspeed {DEEPSPEED_JSON} \
+--model_name_or_path {MODEL_NAME} \
+--version v1 \
+--data_path {DATA_PATH} \
+--image_folder {IMAGE_FOLDER} \
+--vision_tower {VISION_TOWER} \
+--tune_mm_mlp_adapter True \
+--mm_projector_type mlp2x_gelu \
+--mm_vision_select_layer -2 \
+--mm_use_im_start_end False \
+--mm_use_im_patch_token False \
+--image_aspect_ratio pad \
+--group_by_modality_length True \
+--bf16 True \
+--output_dir {OUTPUT_DIR} \
+--num_train_epochs {EPOCHS} \
+--per_device_train_batch_size 6 \
+--per_device_eval_batch_size 4 \
+--gradient_accumulation_steps 1 \
+--evaluation_strategy "no" \
+--save_strategy "steps" \
+--save_steps 100 \
+--save_total_limit 1 \
+--learning_rate 2e-4 \
+--weight_decay 0. \
+--warmup_ratio 0.03 \
+--lr_scheduler_type "cosine" \
+--logging_steps 1 \
+--tf32 True \
+--model_max_length 2048 \
+--gradient_checkpointing True \
+--dataloader_num_workers 4 \
+--lazy_preprocess True \
+--report_to wandb
+"""
+
+print(finetune_script)
+```
+
+# Merging Fine-Tuned weights to LLAVA Model
+
+```{python}
+import subprocess
+merged_model_path = f"./checkpoints/ESA_{FT_MODEL_NAME}"
+checkpoint_path = f"./checkpoints/{FT_MODEL_NAME}/checkpoint-500"
+
+merge_command = f"""python ./scripts/merge_lora_weights.py --model-path {checkpoint_path}  --model-base liuhaotian/llava-v1.5-7b --save-model-path {merged_model_path}"""
+
+subprocess.run(merge_command, shell=True, capture_output=True, text=True)
+```
+
+# Generating Question JSONL Files for Evaluation
+
+# single_conversion questions for 2_category and 1st questions for 4_category
+
+```{python}
+import os
+import json
+import re
+from PIL import Image
+
+def to_snake_case(filename):
+    """
+    Converts a filename to snake_case by replacing spaces and special characters with underscores
+    and converting all letters to lowercase.
+    """
+    snake_case_name = re.sub(r'[\s]+', '_', filename)
+    snake_case_name = snake_case_name.lower()
+    return snake_case_name
+
+def generate_single_question_jsonl(test_image_folder, question_file, data_type):
+    """
+    Generates a JSONL file with questions for images in the specified test_image_folder.
+
+    Parameters:
+    - test_image_folder (str): Path to the folder containing images.
+    - question_file (str): Path to the output JSONL file.
+    - data_type (str): The data type determining the question format.
+    """
+    # Define question_text based on data_type
+    if data_type == "2_category_single_conversion":
+        question_text = (
+            "This is an image of an **unpaved road surface**. The edges of the image may contain black areas "
+            "that are not part of the road surface. Please ignore these areas when assessing the condition "
+            "and focus only on the road surface area visible in the image. Please choose a surface condition "
+            "grade from the following options: Grade_1 or Grade_4."
+        )
+    elif data_type == "4_category_single_conversion":
+        question_text = (
+            "This is an image of an **unpaved road surface**. The edges of the image may contain black areas "
+            "that are not part of the road surface. Please ignore these areas when assessing the condition "
+            "and focus only on the road surface area visible in the image. Please choose a surface condition "
+            "grade from the following options: Grade_1, Grade_2, Grade_3, or Grade_4."
+        )
+    elif data_type == "2_category_multi_conversion":
+        question_text = (
+            "This is an image of an **unpaved road surface**. The edges of the image may contain black areas "
+            "that are not part of the road surface. Please ignore these areas when assessing the condition "
+            "and focus only on the road surface area visible in the image. Describe the surface condition of this "
+            "image in the following aspects:\n"
+            "Surface Condition\nColor Uniformity\nDefects."
+        )
+    elif data_type == "4_category_multi_conversion":
+        question_text = (
+            "This is an image of an **unpaved road surface**. The edges of the image may contain black areas "
+            "that are not part of the road surface. Please ignore these areas when assessing the condition "
+            "and focus only on the road surface area visible in the image. Describe the surface condition of this "
+            "image in the following aspects:\n"
+            "Surface Condition\nColor Uniformity\nDefects."
+        )
+    else:
+        raise ValueError(f"Unsupported data_type: {data_type}")
+
+    # Ensure the directory for question_file exists
+    question_dir = os.path.dirname(question_file)
+    os.makedirs(question_dir, exist_ok=True)
+
+    with open(question_file, "w") as qf:
+        question_id = 1
+        for root, dirs, files in os.walk(test_image_folder):
+            for file in files:
+                if file.lower().endswith(('png', 'jpg', 'jpeg','tif')):
+                    # Relative path from test_image_folder
+                    image_rel_path = os.path.relpath(os.path.join(root, file), start=test_image_folder)
+                    question = {
+                        "question_id": str(question_id),
+                        "image": file,  # Using only the filename as per your requirement
+                        "text": question_text
+                    }
+                    qf.write(json.dumps(question) + "\n")
+                    print(f"Added question_id {question_id}: {file}")  # Debug statement
+                    question_id += 1
+        if question_id == 1:
+            print(f"No images found in {test_image_folder} for data_type {data_type}.")
+
+def main():
+    conditions = ['Good', 'Fair', 'Poor', 'Bad']
+    data_types = [
+        # "2_category_multi_conversion",
+        # "2_category_single_conversion",
+        # "4_category_multi_conversion"
+        # "4_category_single_conversion"
+        "4_category_multi_conversion"
+    ]
+
+    for data_type in data_types:
+        for condition in conditions:
+            test_image_folder = f'./Examples/{condition}/'
+            question_file = f'./question_1st_{condition}_{data_type}.jsonl'
+            if not os.path.exists(test_image_folder):
+                print(f"Warning: Base folder '{test_image_folder}' does not exist. Skipping.")
+                continue
+            try:
+                generate_single_question_jsonl(test_image_folder, question_file, data_type)
+                print(f"Successfully generated {question_file}")
+            except FileNotFoundError as e:
+                print(f"Error: {e}")
+            except Exception as e:
+                print(f"An unexpected error occurred: {e}")
+
+if __name__ == "__main__":
+    main()
+```
+
+# Generating Answers for single conversation Evaluation or 1st answers for multi_conversion data types
+
+set Data_type to the data type you want to generate answers for
+
+
+```{python}
+import subprocess
+conditions = [ 'Fair', 'Poor', 'Bad']
+Data_type = "4_category_multi_conversion"
+test_image_folder = "./Examples"
+merged_model_path ="./checkpoints/ESA_llava_VLM_4_category_multi_conversion_Ep5"
+for condition in conditions:
+    print(f"Generating answers for condition: {condition}")
+
+    command = f"""python llava/eval/model_vqa.py \
+                --model-path {merged_model_path} \
+                --image-folder "{test_image_folder}/{condition}/" \
+                --question-file "question_1st_{condition}_{Data_type}.jsonl" \
+                --answers-file "./answers_1st_{condition}_{Data_type}.json" \
+                --temperature 0
+               """
+    print(f"Executing command: {command}")
+    # Execute the command and capture the output
+    subprocess.run(command, shell=True, capture_output=True, text=True)
+    print("Answers generated successfully.")
+```
+
+
+# Generating 2nd Question JSONL Files for muti_conversion data types
+```{python}
+import os
+import json
+
+def question_2nd_jsonl(data_type, conditions):
+    """
+    Updates the text field in question_1st_{condition}_{data_type}.jsonl using text from
+    answers_1st_{condition}_{data_type}.json for all matching question_ids.
+
+    Parameters:
+    - data_type (str): The data type (e.g., "4_category_multi_conversion").
+    - conditions (list): List of conditions to process (e.g., ["Good", "Fair", "Poor", "Bad"]).
+    """
+
+    # Define grades based on data_type
+    if data_type == "2_category_multi_conversion":
+        grades = ["Grade_1", "Grade_4"]
+    elif data_type == "4_category_multi_conversion":
+        grades = ["Grade_1", "Grade_2", "Grade_3", "Grade_4"]
+    else:
+        print(f"Unsupported data_type: {data_type}")
+        return
+
+    for condition in conditions:
+        # Define file paths
+        answer_file = f"./answers_1st_{condition}_{data_type}.json"
+        # answer_file = f"1_answer/answers_{condition}_1_{data_type}.json"
+        question_file = f"./question_1st_{condition}_{data_type}.jsonl"
+        output_file = f"./question_2nd_{condition}_{data_type}.jsonl"
+
+        try:
+            # Load answer.json
+            with open(answer_file, "r") as af:
+                answer_data = [json.loads(line) for line in af]
+
+            # Read and update the question.jsonl file
+            with open(question_file, "r") as qf:
+                questions = [json.loads(line) for line in qf]
+
+            updated_questions = []
+            for question in questions:
+                question_id = question.get("question_id")
+
+                # Find matching question_id in answer.json
+                matching_answer = next((ans for ans in answer_data if ans.get("question_id") == question_id), None)
+
+                if matching_answer:
+                    description_text = matching_answer.get("text", "")
+                    question_text = (
+                        f"Based on the provided description - {description_text} - "
+                        f"please choose a surface condition grade "
+                        f"from the following options: {', '.join(grades)}."
+                    )
+                    question["text"] = question_text
+                    print(f"Updated question_id {question_id} for {condition} in {data_type}.")
+
+                updated_questions.append(question)
+
+            # Ensure the output directory exists
+            os.makedirs(os.path.dirname(output_file), exist_ok=True)
+
+            # Write updated questions to the output file
+            with open(output_file, "w") as of:
+                for uq in updated_questions:
+                    of.write(json.dumps(uq) + "\n")
+
+            print(f"Successfully updated and saved {output_file}")
+
+        except FileNotFoundError as e:
+            print(f"Error: {e}")
+        except json.JSONDecodeError:
+            print(f"Error: Failed to decode JSON in {answer_file} or {question_file}.")
+        except Exception as e:
+            print(f"An unexpected error occurred: {e}")
+
+
+if __name__ == "__main__":
+    # Example usage
+    conditions = ["Good", "Fair", "Poor", "Bad"]
+    data_type = "4_category_multi_conversion"  # Example data type
+    question_2nd_jsonl(data_type, conditions)
+
+```
+
+
+# Generating Answers for 2nd Questions
+
+```{python}
+import subprocess
+conditions = ['Good', 'Fair', 'Poor', 'Bad']
+# Data_type = "4_category_multi_conversion"
+for condition in conditions:
+    print(f"Generating answers for condition: {condition}")
+
+    command = f"""python llava/eval/model_vqa.py \
+                --model-path {merged_model_path} \
+                --image-folder "{test_image_folder}/{condition}/" \
+                --question-file "./question_2nd_{condition}_{Data_type}.jsonl" \
+                --answers-file "./answers_2nd_{condition}_{Data_type}.json" \
+                --temperature 0
+               """
+    print(f"Executing command: {command}")
+    # Execute the command and capture the output
+    subprocess.run(command, shell=True, capture_output=True, text=True)
+    print("Answers generated successfully.")
+```
+
+
+# Evaluation Metrics
+
+```{python}
+import json
+import pandas as pd
+
+# List of conditions to analyze
+conditions = ['Good', 'Fair', 'Poor', 'Bad']
+
+# Initialize an empty list to hold the results
+results = []
+
+for condition in conditions:
+
+    if Data_type in ['4_category_single_conversion', '4_category_multi_conversion']:
+        grade_categories = ['grade_1', 'grade_2', 'grade_3', 'grade_4']
+    elif Data_type in ['2_category_single_conversion', '2_category_multi_conversion']:
+        grade_categories = ['grade_1', 'grade_4']
+    else:
+        print("Invalid Data Type")
+
+    file_suffix = '1' if 'single' in Data_type else '2'
+    file_suffix_2 = '1st' if 'single' in Data_type else '2nd'
+    file_path = f'./answer_{file_suffix}/answers_{file_suffix_2}_{condition}_{Data_type}.json'
+    # file_path = f'./1_answer/answers_{condition}_2_{Data_type}.json'
+    print(f"Analyzing file: answer_{file_suffix}/answers_{file_suffix_2}_{condition}_{Data_type}.json")
+
+
+    # Initialize an empty list to hold the JSON objects
+    jsonl_content = []
+
+    # Read the JSON Lines file line by line
+    with open(file_path, 'r') as f:
+        for line in f:
+            jsonl_content.append(json.loads(line))
+
+    # Initialize a dictionary to store the count of each grade
+    grade_count = {grade: 0 for grade in grade_categories}  # Initialize all possible grades to zero
+
+    # Normalize the grades and count occurrences
+    for entry in jsonl_content:
+        # Normalize grade naming by replacing spaces with underscores and converting to lowercase
+        grade = entry["text"].replace(" ", "_").strip().lower()
+        if grade in grade_count:
+            grade_count[grade] += 1
+
+    # Add the condition to the grade_count dictionary
+    grade_count['Condition'] = condition
+
+    # Append the grade_count dictionary to the results list
+    results.append(grade_count)
+
+# Convert the list of dictionaries to a DataFrame
+grade_count_df = pd.DataFrame(results)
+
+# Reindex the DataFrame to have consistent columns across all data types
+grade_count_df = grade_count_df.reindex(columns=['Condition'] + grade_categories)
+
+# Fill NaN values with 0
+grade_count_df.fillna(0, inplace=True)
+
+# Convert counts to integers (they might be floats due to NaN replacements)
+for grade in grade_categories:
+    grade_count_df[grade] = grade_count_df[grade].astype(int)
+
+# Display the DataFrame
+print(grade_count_df)
+```
+
+

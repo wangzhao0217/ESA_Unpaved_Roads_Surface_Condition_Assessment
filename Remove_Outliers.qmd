@@ -1,0 +1,124 @@
+---
+title: "Assessment of Unpaved Road Network Using Satellite Imagery and Machine Learning"
+
+author: 
+  - name: Zhao Wang
+    affiliation: Leeds Institute for Transport Studies, University of Leeds, UK
+
+format:
+  gfm: default
+
+number-sections: true
+execute: 
+  echo: false
+  cache: false
+editor: 
+  markdown: 
+    wrap: sentence
+# jupyter: python3
+---
+
+Here is the code to remove outliers from the dataset.
+
+```{python}
+import numpy as np
+import pandas as pd
+from sklearn.impute import SimpleImputer
+import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.decomposition import PCA
+from scipy.spatial.distance import mahalanobis
+from mpl_toolkits.mplot3d import Axes3D 
+
+def remove_outliers(df, label_column, label_value, n_components=3, percentile=99, plot=False):
+    """Remove outliers based on PCA and Mahalanobis distance from a DataFrame using a percentile-based threshold."""
+    df_filtered = df[df[label_column] == label_value].copy()
+
+    # Selecting numerical data and handling NaNs by imputing the median of each column
+    numerical_data = df_filtered.select_dtypes(include=[np.number])
+    imputer = SimpleImputer(strategy='median')  # Using median to impute
+    numerical_data_imputed = imputer.fit_transform(numerical_data)
+    
+    pca = PCA(n_components=n_components)
+    principal_components = pca.fit_transform(numerical_data_imputed)
+
+    mean_pc = np.mean(principal_components, axis=0)
+    covariance_pc = np.cov(principal_components, rowvar=False)
+    inverse_covariance_pc = np.linalg.inv(covariance_pc)
+
+    mahalanobis_distances = [mahalanobis(sample, mean_pc, inverse_covariance_pc) for sample in principal_components]
+    df_filtered['Mahalanobis_Distance'] = mahalanobis_distances
+    df_filtered['Principal_Component_1'] = principal_components[:, 0]
+    df_filtered['Principal_Component_2'] = principal_components[:, 1]
+    df_filtered['Principal_Component_3'] = principal_components[:, 2]
+
+    threshold = np.percentile(mahalanobis_distances, percentile)
+    non_outliers = df_filtered[df_filtered['Mahalanobis_Distance'] <= threshold]
+    outliers = df_filtered[df_filtered['Mahalanobis_Distance'] > threshold]
+
+    if plot:
+        fig = plt.figure(figsize=(8, 8))
+        ax = fig.add_subplot(111, projection='3d')  # Add a 3D subplot
+
+        # Scatter plot for non-outliers
+        ax.scatter(non_outliers['Principal_Component_1'], non_outliers['Principal_Component_2'], non_outliers['Principal_Component_3'],
+                c='blue', label='Non-Outliers', s=50, edgecolors='w')
+
+        # Scatter plot for outliers
+        ax.scatter(outliers['Principal_Component_1'], outliers['Principal_Component_2'], outliers['Principal_Component_3'],
+                c='red', label='Outliers', marker='*', s=100)
+
+        # Setting labels
+        ax.set_xlabel('Principal Component 1', fontsize=14)
+        ax.set_ylabel('Principal Component 2', fontsize=14)
+        ax.set_zlabel('Principal Component 3', fontsize=14)
+
+        # Set other plot properties
+        ax.set_title('PCA Result with Outliers Marked', fontsize=16)
+        ax.legend(loc='upper right', fontsize=12)
+        ax.grid(True, linestyle='--')
+        plt.tight_layout()
+        plt.show()
+
+    return non_outliers, outliers
+percentile = 96
+Res = "Low"
+label = [1,2,3,4]
+data = pd.read_csv(f"output\SVM-hsv-Color_Moments_GLCM_test_{Res}_Res.csv")
+for l in label:
+    non_outliers, outliers = remove_outliers(data, 'Label', l, percentile=percentile, plot = True)
+```
+
+```{python}
+import os
+import pandas as pd
+import warnings
+
+# Specify the directory path where you want to list .csv files
+directory_path = 'output'  # Replace this with your actual folder path
+
+# List all entries in the directory
+all_items = os.listdir(directory_path)
+
+# Filter out directories and only keep .csv files
+csv_files = [item for item in all_items if item.endswith('.csv') and os.path.isfile(os.path.join(directory_path, item))]
+
+log = []
+for csv in csv_files:
+
+    data = pd.read_csv(f"output/{csv}")
+    data_clean = pd.DataFrame()
+
+    for label in data['Label'].unique():
+        non_outliers = remove_outliers(data, 'Label', label, percentile=percentile)
+        non_outliers_df = non_outliers[0] if isinstance(non_outliers, tuple) else non_outliers
+        #drop Mahalanobis_Distance Principal_Component_1 and Principal_Component_2 columns
+        data_clean = pd.concat([data_clean, non_outliers_df], ignore_index=True)
+        data_clean = data_clean.drop(columns=['Mahalanobis_Distance', 'Principal_Component_1', 'Principal_Component_2', 'Principal_Component_3'])
+
+    data_clean.to_csv(f"output_clean/{csv}", index=False)
+    diff_shape = data.shape[0] - data_clean.shape[0]
+    log.append((csv, diff_shape))
+    print(f"File {csv} ! \n Removed ***{diff_shape}*** outliers.\n")
+```
+

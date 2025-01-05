@@ -1,0 +1,425 @@
+---
+title: "Assessment of Unpaved Road Network Using Satellite Imagery and Machine Learning"
+
+author: 
+  - name: Zhao Wang
+    affiliation: Leeds Institute for Transport Studies, University of Leeds, UK
+
+format:
+  gfm: default
+
+number-sections: true
+execute: 
+  echo: false
+  cache: false
+editor: 
+  markdown: 
+    wrap: sentence
+# jupyter: python3
+---
+
+# Reproducibility {.unnumbered}
+```{bash}
+#| eval: false
+#| python setup.py sdist bdist_wheel
+pip install unpaved-road-condition-analysis
+pip install dist/unpaved_road_condition_analysis-0.0.3-py3-none-any.whl
+```
+
+``` bash
+quarto render README.qmd
+```
+
+# Introduction {.unnumbered}
+This project is designed to assess the condition of unpaved roads using satellite imagery and machine learning. 
+
+# Procedure {.unnumbered}
+To run the analysis, the following library is required:
+
+```{python}
+#| eval: false
+# Imports from unpaved road condition analysis module
+from unpaved_road_condition_analysis import (
+    Autokeras_best_model,
+    Autokeras_model,
+    Color_Moments_GLCM,
+    Color_Moments_GLCM_Complex,
+    Color_Moments_GLCM_IMG,
+    ak_load_data,
+    ak_transfer_learning,
+    calculate_color_histogram,
+    calculate_contour_properties,
+    calculate_fourier_transform,
+    calculate_hog_features,
+    calculate_lbp_features,
+    evaluate_model_performance,
+    load_image,
+    model_train,
+    multimodal_prediction,
+    process_img_to_PCA,
+    process_road_condition_data,
+    standardize_images,
+)
+
+# Data processing and utilities
+import numpy as np
+import pandas as pd
+import pickle
+from sklearn.utils import shuffle
+from sklearn.preprocessing import label_binarize
+
+# Machine Learning / Deep Learning
+import autokeras as ak
+import tensorflow as tf
+from tensorflow.keras.callbacks import EarlyStopping
+from tensorflow.keras.models import load_model
+from tensorflow.keras.utils import to_categorical
+from pycaret.classification import load_model, predict_model
+from sklearn.metrics import (
+    accuracy_score,
+    cohen_kappa_score,
+    confusion_matrix,
+    matthews_corrcoef,
+    mean_squared_error,
+    precision_recall_fscore_support,
+    roc_auc_score,
+)
+
+# Visualization
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+# Miscellaneous
+from duns import *
+from itertools import cycle
+```
+
+Due to license restrictions, the original satellite imagery data cannot be provided. Therefore, any functions that require the original data will not be able to run. However, the processed data is provided along with the trained model, so that model training and evaluation can still be performed.
+
+# Traditional Machine Learning Model {.unnumbered}
+
+The function `Color_Moments_GLCM` is utilized for performing statistical image analysis and extracting texture eigenvectors. 
+
+Define the path of the image
+```{python}
+Madagascar_High_train = 'data/Madagascar High/Madagascar High ML/train/'
+Madagascar_High_test = 'data/Madagascar High/Madagascar High ML/test/'
+
+Madagascar_Mid_train = 'data/Madagascar Mid/Madagascar Mid ML/train/'
+Madagascar_Mid_test = 'data/Madagascar Mid/Madagascar Mid ML/test/'
+
+Madagascar_Low_train = 'data/Madagascar Low/Madagascar Low ML/train/'
+Madagascar_Low_test = 'data/Madagascar Low/Madagascar Low ML/test/'
+```
+
+Extract basic image features using the `Color_Moments_GLCM` function.
+
+```{python}
+#| eval: false
+Color_Moments_GLCM(datapath=Madagascar_High_train, datatype='train', file_name = 'High_Res')
+Color_Moments_GLCM(datapath=Madagascar_High_test, datatype='test', file_name = 'High_Res')
+
+Color_Moments_GLCM(datapath=Madagascar_Mid_train, datatype='train', file_name = 'Mid_Res')
+Color_Moments_GLCM(datapath=Madagascar_Mid_test, datatype='test', file_name = 'Mid_Res')
+
+Color_Moments_GLCM(datapath=Madagascar_Low_train, datatype='train', file_name = 'Low_Res')
+Color_Moments_GLCM(datapath=Madagascar_Low_test, datatype='test', file_name = 'Low_Res')
+```
+
+The function `model_train` is utilized for training the model and saving the model performance.
+
+```{python}
+#| eval: false
+model_train(df_train = pd.read_csv(f"{data_folder}\SVM-hsv-Color_Moments_GLCM_train_High_Res.csv"), df_test = pd.read_csv(f"{data_folder}\SVM-hsv-Color_Moments_GLCM_test_High_Res.csv"), file_name = 'High_Res', fix_imbalance=True, use_gpu=True)
+
+model_train(df_train = pd.read_csv(f"{data_folder}\SVM-hsv-Color_Moments_GLCM_train_Mid_Res.csv"), df_test = pd.read_csv(f"{data_folder}\SVM-hsv-Color_Moments_GLCM_test_Mid_Res.csv"), file_name = 'Mid_Res',fix_imbalance=True, use_gpu=True)
+
+model_train(df_train = pd.read_csv(f"{data_folder}\SVM-hsv-Color_Moments_GLCM_train_Low_Res.csv"), df_test = pd.read_csv(f"{data_folder}\SVM-hsv-Color_Moments_GLCM_test_Low_Res.csv"), file_name = 'Low_Res', fix_imbalance=True, use_gpu=True)
+```
+
+The `Color_Moments_GLCM_Complex` function is employed for conducting statistical image analysis and extracting texture eigenvectors. However, it also extracts additional information from the image, such as color histograms, Fourier transforms, Local Binary Patterns (LBP) features, Histogram of Oriented Gradients (HOG) features, and contour properties.
+
+```{python}
+#| eval: false
+Color_Moments_GLCM_Complex(datapath=Madagascar_High_train, datatype='train', file_name = 'High_Res')
+Color_Moments_GLCM_Complex(datapath=Madagascar_High_test, datatype='test', file_name = 'High_Res')
+
+Color_Moments_GLCM_Complex(datapath=Madagascar_Mid_train, datatype='train', file_name = 'Mid_Res')
+Color_Moments_GLCM_Complex(datapath=Madagascar_Mid_test, datatype='test', file_name = 'Mid_Res')
+
+Color_Moments_GLCM_Complex(datapath=Madagascar_Low_train, datatype='train', file_name = 'Low_Res')
+Color_Moments_GLCM_Complex(datapath=Madagascar_Low_test, datatype='test', file_name = 'Low_Res')
+```
+```{python}
+#| eval: false
+model_train(df_train = pd.read_csv(f"{data_folder}\SVM-hsv-Color_Moments_GLCM_train_High_Res_complex.csv"), df_test = pd.read_csv(f"{data_folder}\SVM-hsv-Color_Moments_GLCM_test_High_Res_complex.csv"), file_name = 'High_Res_complex_m', fix_imbalance=True, use_gpu=True)
+
+model_train(df_train = pd.read_csv(f"{data_folder}\SVM-hsv-Color_Moments_GLCM_train_Mid_Res_complex.csv"), df_test = pd.read_csv(f"{data_folder}\SVM-hsv-Color_Moments_GLCM_test_Mid_Res_complex.csv"), file_name = 'Mid_Res_complex_m', fix_imbalance=True, use_gpu=True, plot_history=False)
+
+model_train(df_train = pd.read_csv(f"{data_folder}\SVM-hsv-Color_Moments_GLCM_train_Low_Res_complex.csv"), df_test = pd.read_csv(f"{data_folder}\SVM-hsv-Color_Moments_GLCM_test_Low_Res_complex.csv"), file_name = 'Low_Res_complex_m', fix_imbalance=True, use_gpu=True, plot_history=False)
+```
+
+# Multi-Modal Model {.unnumbered}
+
+The `Autokeras_model` function is designed for developing a multi-modal task using the AutoKeras package. The function accepts both image and structured data as input and returns the trained model.
+
+The `Color_Moments_GLCM_IMG` function is designed for extracting statistical image analysis and texture eigenvectors, while simultaneously retaining the original image data. The primary purpose of this function is to prepare data for the AutoKeras model, which accepts both image and structured data as input for developing a multi-modal task.
+
+```{python}
+#| eval: false
+X_image_train_High_Res, X_structured_train_High_Res = Color_Moments_GLCM_IMG(datapath=Madagascar_High_train, datatype='train', file_name = 'High_Res')
+X_image_test_High_Res, X_structured_test_High_Res = Color_Moments_GLCM_IMG(datapath=Madagascar_High_test, datatype='test', file_name = 'High_Res')
+
+X_image_train_Mid_Res, X_structured_train_Mid_Res = Color_Moments_GLCM_IMG(datapath=Madagascar_Mid_train, datatype='train', file_name = 'Mid_Res')
+X_image_test_Mid_Res, X_structured_test_Mid_Res = Color_Moments_GLCM_IMG(datapath=Madagascar_Mid_test, datatype='test', file_name = 'Mid_Res')
+
+X_image_train_Low_Res, X_structured_train_Low_Res = Color_Moments_GLCM_IMG(datapath=Madagascar_Low_train, datatype='train', file_name = 'Low_Res')
+X_image_test_Low_Res, X_structured_test_Low_Res = Color_Moments_GLCM_IMG(datapath=Madagascar_Low_test, datatype='test', file_name = 'Low_Res')
+```
+
+```{python}
+#| eval: false
+Autokeras_model(
+    X_IMG_train = pickle.load(open(f"{data_folder}\X_image_train_High_Res_img.pkl", 'rb')),
+    X_GLCM_train = pd.read_csv(f"{data_folder}\SVM-hsv-Color_Moments_GLCM_train_High_Res_img.csv"),
+    X_IMG_test = pickle.load(open(f"{data_folder}\X_image_test_High_Res_img.pkl", 'rb')),
+    X_GLCM_test = pd.read_csv(f"{data_folder}\SVM-hsv-Color_Moments_GLCM_test_High_Res_img.csv"), max_trials = 150, epochs = 10,batch_size = 32, file_name = "High_Res"
+)
+
+Autokeras_best_model(
+    X_IMG_train = pickle.load(open(f"{data_folder}\X_image_train_High_Res_img.pkl", 'rb')),
+    X_GLCM_train = pd.read_csv(f"{data_folder}\SVM-hsv-Color_Moments_GLCM_train_High_Res_img.csv"),
+    X_IMG_test = pickle.load(open(f"{data_folder}\X_image_test_High_Res_img.pkl", 'rb')),
+    X_GLCM_test = pd.read_csv(f"{data_folder}\SVM-hsv-Color_Moments_GLCM_test_High_Res_img.csv"), 
+    Model_path = "auto_model/best_model",  
+    epochs = 500, 
+    batch_size = 32, 
+    file_name = "High_Res"
+    )
+
+current_folder_name = 'auto_model'
+new_folder_name = 'auto_model_High_Res'
+
+os.rename(current_folder_name, new_folder_name)
+```
+Multimodal model transfer learning
+```{python}
+ak_transfer_learning(
+  X_IMG_train = pickle.load(open(f"{data_folder}\X_image_train_Mid_Res_img.pkl", 'rb')),
+  X_GLCM_train = pd.read_csv(f"{data_folder}\SVM-hsv-Color_Moments_GLCM_train_Mid_Res_img.csv"),
+  X_IMG_test = pickle.load(open(f"{data_folder}\X_image_test_Mid_Res_img.pkl", 'rb')),
+  X_GLCM_test = pd.read_csv(f"{data_folder}\SVM-hsv-Color_Moments_GLCM_test_Mid_Res_img.csv"), 
+  Model_path = "model/ak_best_model_High_Res",  
+  epochs = 1000, batch_size = 64,  Res = "Mid")
+
+ak_transfer_learning(
+  X_IMG_train = pickle.load(open(f"{data_folder}\X_image_train_Low_Res_img.pkl", 'rb')),
+  X_GLCM_train = pd.read_csv(f"{data_folder}\SVM-hsv-Color_Moments_GLCM_train_Low_Res_img.csv"),
+  X_IMG_test = pickle.load(open(f"{data_folder}\X_image_test_Low_Res_img.pkl", 'rb')),
+  X_GLCM_test = pd.read_csv(f"{data_folder}\SVM-hsv-Color_Moments_GLCM_test_Low_Res_img.csv"),
+  Model_path = "model/ak_best_model_High_Res",  
+  epochs = 1000, batch_size = 64, Res = "Low")
+```
+
+# PCA model
+
+The `process_img_to_PCA` function is specifically designed to extract detailed information from images by utilizing the capabilities of a pretrained VGG16 model. Once the image data is processed through VGG16, which is known for its efficiency in identifying and encoding key features in images, the function then applies Principal Component Analysis (PCA). PCA is a statistical technique that transforms the complex image data into a simplified form by reducing its dimensionality. This reduction is achieved without significantly losing the essential characteristics of the data, allowing for a more manageable and efficient analysis. The combination of VGG16's feature extraction and PCA's dimensionality reduction makes this function particularly useful for tasks that require a concise yet comprehensive understanding of image content.
+
+```{python}
+#| eval: false
+
+process_img_to_PCA('train', path = Madagascar_High_train, file_name = 'High_Res')
+process_img_to_PCA('test', path = Madagascar_High_test, file_name = 'High_Res')
+
+process_img_to_PCA('train', path = Madagascar_Mid_train, file_name = 'Mid_Res')
+process_img_to_PCA('test', path = Madagascar_Mid_test, file_name = 'Mid_Res')
+
+process_img_to_PCA('train', path = Madagascar_Low_train, file_name = 'Low_Res')
+process_img_to_PCA('test', path = Madagascar_Low_test, file_name = 'Low_Res')
+```
+
+Loading the PCA-processed image data
+
+```{python}
+#| eval: false
+# High_Res
+data_folder = "Output"
+train_file_path_High_Res = f'{data_folder}/road_condition_data_train_High_Res.pkl'
+train_df_High_Res, fitted_pca = process_road_condition_data(train_file_path_High_Res, is_train=True)
+
+test_file_path_High_Res = f'{data_folder}/road_condition_data_test_High_Res.pkl'
+test_df_High_Res, _ = process_road_condition_data(test_file_path_High_Res, pca=fitted_pca, is_train=False)
+
+# Mid_Res
+train_file_path_Mid_Res = f'{data_folder}/road_condition_data_train_Mid_Res.pkl'
+train_df_Mid_Res, fitted_pca = process_road_condition_data(train_file_path_Mid_Res, is_train=True)
+
+test_file_path_Mid_Res = f'{data_folder}/road_condition_data_test_Mid_Res.pkl'
+test_df_Mid_Res, _ = process_road_condition_data(test_file_path_Mid_Res, pca=fitted_pca, is_train=False)
+
+# Low_Res
+train_file_path_Low_Res = f'{data_folder}/road_condition_data_train_Low_Res.pkl'
+train_df_Low_Res, fitted_pca = process_road_condition_data(train_file_path_Low_Res, is_train=True)
+
+test_file_path_Low_Res = f'{data_folder}/road_condition_data_test_Low_Res.pkl'
+test_df_Low_Res, _ = process_road_condition_data(test_file_path_Low_Res, pca=fitted_pca, is_train=False)
+```
+
+
+Model training using PCA-processed image data
+
+```{python}
+#| eval: false
+model_train(df_train = train_df_High_Res, df_test=test_df_High_Res, file_name = 'High_Res_PCA',fix_imbalance=True, use_gpu=True)
+
+model_train(df_train = train_df_Mid_Res, df_test=test_df_Mid_Res, file_name = 'Mid_Res_PCA', fix_imbalance=True, use_gpu=True)
+
+model_train(df_train = train_df_Low_Res, df_test=test_df_Low_Res, file_name = 'Low_Res_PCA', fix_imbalance=True, use_gpu=True)
+```
+
+# Evaluate the model performance
+
+Define the data path for the training and testing data. 
+```{python}
+data_folder = "Output"
+High_Res_train = f"{data_folder}/SVM-hsv-Color_Moments_GLCM_train_High_Res.csv"
+High_Res_test = f"{data_folder}/SVM-hsv-Color_Moments_GLCM_test_High_Res.csv"
+
+Low_Res_train = f"{data_folder}/SVM-hsv-Color_Moments_GLCM_train_Low_Res.csv"
+Low_Res_test = f"{data_folder}/SVM-hsv-Color_Moments_GLCM_test_Low_Res.csv"
+
+Mid_Res_train = f"{data_folder}/SVM-hsv-Color_Moments_GLCM_train_Mid_Res.csv"
+Mid_Res_test = f"{data_folder}/SVM-hsv-Color_Moments_GLCM_test_Mid_Res.csv"
+
+High_Res_train_complex = f"{data_folder}/SVM-hsv-Color_Moments_GLCM_train_High_Res_complex.csv"
+High_Res_test_complex = f"{data_folder}/SVM-hsv-Color_Moments_GLCM_test_High_Res_complex.csv"
+
+Low_Res_train_complex = f"{data_folder}/SVM-hsv-Color_Moments_GLCM_train_Low_Res_complex.csv"
+Low_Res_test_complex = f"{data_folder}/SVM-hsv-Color_Moments_GLCM_test_Low_Res_complex.csv"
+
+Mid_Res_train_complex = f"{data_folder}/SVM-hsv-Color_Moments_GLCM_train_Mid_Res_complex.csv"
+Mid_Res_test_complex = f"{data_folder}/SVM-hsv-Color_Moments_GLCM_test_Mid_Res_complex.csv"
+
+High_Res_train_IMG_csv = f"{data_folder}/SVM-hsv-Color_Moments_GLCM_train_High_Res_img.csv"
+High_Res_test_IMG_csv = f"{data_folder}/SVM-hsv-Color_Moments_GLCM_test_High_Res_img.csv"
+
+Low_Res_train_IMG_csv = f"{data_folder}/SVM-hsv-Color_Moments_GLCM_train_Low_Res_img.csv"
+Low_Res_test_IMG_csv = f"{data_folder}/SVM-hsv-Color_Moments_GLCM_test_Low_Res_img.csv"
+
+Mid_Res_train_IMG_csv = f"{data_folder}/SVM-hsv-Color_Moments_GLCM_train_Mid_Res_img.csv"
+Mid_Res_test_IMG_csv = f"{data_folder}/SVM-hsv-Color_Moments_GLCM_test_Mid_Res_img.csv"
+
+High_Res_train_IMG_image = f"{data_folder}/X_image_train_High_Res_img.pkl"
+High_Res_test_IMG_image = f"{data_folder}/X_image_test_High_Res_img.pkl"
+
+Low_Res_train_IMG_image = f"{data_folder}/X_image_train_Low_Res_img.pkl"
+Low_Res_test_IMG_image = f"{data_folder}/X_image_test_Low_Res_img.pkl"
+
+Mid_Res_train_IMG_image = f"{data_folder}/X_image_train_Mid_Res_img.pkl"
+Mid_Res_test_IMG_image = f"{data_folder}/X_image_test_Mid_Res_img.pkl"
+
+High_Res_train_PCA = f"{data_folder}/road_condition_data_train_High_Res.pkl"
+High_Res_test_PCA = f"{data_folder}/road_condition_data_test_High_Res.pkl"
+
+Low_Res_train_PCA = f"{data_folder}/road_condition_data_train_Low_Res.pkl"
+Low_Res_test_PCA = f"{data_folder}/road_condition_data_test_Low_Res.pkl"
+
+Mid_Res_train_PCA = f"{data_folder}/road_condition_data_train_Mid_Res.pkl"
+Mid_Res_test_PCA = f"{data_folder}/road_condition_data_test_Mid_Res.pkl"
+```
+
+Loading the PCA-processed image data
+
+```{python}
+# High_Res
+train_file_path_High_Res = f'{data_folder}/road_condition_data_train_High_Res.pkl'
+train_df_High_Res, fitted_pca = process_road_condition_data(train_file_path_High_Res, is_train=True)
+
+test_file_path_High_Res = f'{data_folder}/road_condition_data_test_High_Res.pkl'
+test_df_High_Res, _ = process_road_condition_data(test_file_path_High_Res, pca=fitted_pca, is_train=False)
+
+# Mid_Res
+train_file_path_Mid_Res = f'{data_folder}/road_condition_data_train_Mid_Res.pkl'
+train_df_Mid_Res, fitted_pca = process_road_condition_data(train_file_path_Mid_Res, is_train=True)
+
+test_file_path_Mid_Res = f'{data_folder}/road_condition_data_test_Mid_Res.pkl'
+test_df_Mid_Res, _ = process_road_condition_data(test_file_path_Mid_Res, pca=fitted_pca, is_train=False)
+
+# Low_Res
+train_file_path_Low_Res = f'{data_folder}/road_condition_data_train_Low_Res.pkl'
+train_df_Low_Res, fitted_pca = process_road_condition_data(train_file_path_Low_Res, is_train=True)
+
+test_file_path_Low_Res = f'{data_folder}/road_condition_data_test_Low_Res.pkl'
+test_df_Low_Res, _ = process_road_condition_data(test_file_path_Low_Res, pca=fitted_pca, is_train=False)
+```
+
+Define the model path
+```{python}
+High_Res_structured_model_path = "model/best_model_structured_High_Res"
+Mid_Res_structured_model_path = "model/best_model_structured_Mid_Res"
+Low_Res_structured_model_path = "model/best_model_structured_Low_Res"
+
+High_Res_structured_model_path_complex = "model/best_model_structured_High_Res_complex_m"
+Mid_Res_structured_model_path_complex = "model/best_model_structured_Mid_Res_complex_m"
+Low_Res_structured_model_path_complex = "model/best_model_structured_Low_Res_complex_m"
+
+High_Res_structured_model_path_IMG = "model/best_model_structured_High_Res_IMG"
+Mid_Res_structured_model_path_IMG = "model/best_model_structured_Mid_Res_IMG"
+Low_Res_structured_model_path_IMG = "model/best_model_structured_Low_Res_IMG"
+
+High_Res_structured_model_path_PCA = "model/best_model_structured_High_Res_PCA"
+Mid_Res_structured_model_path_PCA = "model/best_model_structured_Mid_Res_PCA"
+Low_Res_structured_model_path_PCA = "model/best_model_structured_Low_Res_PCA"
+```
+
+```{python}
+performance_check(High_Res_structured_model_path, High_Res_test, Name = "High_Res_Base_Model_High_Res", cbar = False)
+performance_check(High_Res_structured_model_path_complex, High_Res_test_complex, Name = "High_Res_Extended_Model", cbar = False)
+performance_check(High_Res_structured_model_path_PCA , test_df_High_Res, PCA=True,  Name = "High_Res_PCA_Model", cbar = False)
+
+# Mid_Res
+performance_check(Mid_Res_structured_model_path, Mid_Res_test, Name = "Mid_Res_Base_Model", cbar = False)
+performance_check(Mid_Res_structured_model_path_complex, Mid_Res_test_complex, Name = "Mid_Res_Extended_Model", cbar = False)
+performance_check(Mid_Res_structured_model_path_PCA , test_df_Mid_Res, PCA=True,  Name = "Mid_Res_PCA_Model", cbar = False)
+
+# Low_Res
+performance_check(Low_Res_structured_model_path, Low_Res_test, Name = "Low_Res_Base_Model", cbar = False)
+performance_check(Low_Res_structured_model_path_complex, Low_Res_test_complex,    Name = "Low_Res_Extended_Model", cbar = False)
+performance_check(Low_Res_structured_model_path_PCA , test_df_Low_Res, PCA=True,  Name = "Low_Res_PCA_Model", cbar = False)
+```
+
+Multimodal model performance evaluation
+
+```{python}
+Res = "High" # "Mid" or "Low"
+Model = load_model(f"model/ak_transfer_model_{Res}_Res", custom_objects=ak.CUSTOM_OBJECTS)
+
+X_structured_test, y_structured_test_encoded = ak_load_data(  
+  X_IMG_train = pickle.load(open(f"{data_folder}\X_image_train_{Res}_Res_img.pkl", 'rb')),
+  X_GLCM_train = pd.read_csv(f"{data_folder}\SVM-hsv-Color_Moments_GLCM_train_{Res}_Res_img.csv"),
+  X_IMG_test = pickle.load(open(f"{data_folder}\X_image_test_{Res}_Res_img.pkl", 'rb')),
+  X_GLCM_test = pd.read_csv(f"{data_folder}\SVM-hsv-Color_Moments_GLCM_test_{Res}_Res_img.csv"), 
+  Res = Res)
+
+results = Model.evaluate([X_image_test, X_structured_test], y_structured_test_encoded)
+print("Test results - Loss: {:.2f}, Accuracy: {:.2f}%".format(results[0], results[1]*100))
+```
+
+Check performance of the transfer model.
+
+```{python}
+Res = "Mid"
+
+Model = load_model(f"model/ak_transfer_model_from_High_to_{Res}", custom_objects=ak.CUSTOM_OBJECTS)
+
+X_image_train, y_image_train, X_image_test, y_image_test, X_structured_train, y_structured_train_encoded, X_structured_test, y_structured_test_encoded = ak_load_data(  X_IMG_train = pickle.load(open(f"{data_folder}\X_image_train_{Res}_Res_img.pkl", 'rb')),
+  X_GLCM_train = pd.read_csv(f"{data_folder}\SVM-hsv-Color_Moments_GLCM_train_{Res}_Res_img.csv"),
+  X_IMG_test = pickle.load(open(f"{data_folder}\X_image_test_{Res}_Res_img.pkl", 'rb')),
+  X_GLCM_test = pd.read_csv(f"{data_folder}\SVM-hsv-Color_Moments_GLCM_test_{Res}_Res_img.csv"), Res = Res)
+
+results = Model.evaluate([X_image_test, X_structured_test], y_structured_test_encoded)
+print("Test results - Loss: {:.2f}, Accuracy: {:.2f}%".format(results[0], results[1]*100))
+
+results = Model.evaluate([X_image_train, X_structured_train], y_structured_train_encoded)
+print("Test results - Loss: {:.2f}, Accuracy: {:.2f}%".format(results[0], results[1]*100))
+```
