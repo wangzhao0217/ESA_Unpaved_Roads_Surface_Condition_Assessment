@@ -243,7 +243,7 @@ Loading the PCA-processed image data
 ```{python}
 #| eval: false
 # High_Res
-data_folder = "Output"
+data_folder = "output"
 train_file_path_High_Res = f'{data_folder}/road_condition_data_train_High_Res.pkl'
 train_df_High_Res, fitted_pca = process_road_condition_data(train_file_path_High_Res, is_train=True)
 
@@ -281,7 +281,7 @@ model_train(df_train = train_df_Low_Res, df_test=test_df_Low_Res, file_name = 'L
 
 Define the data path for the training and testing data. 
 ```{python}
-data_folder = "Output"
+data_folder = "output"
 High_Res_train = f"{data_folder}/SVM-hsv-Color_Moments_GLCM_train_High_Res.csv"
 High_Res_test = f"{data_folder}/SVM-hsv-Color_Moments_GLCM_test_High_Res.csv"
 
@@ -375,24 +375,26 @@ Low_Res_structured_model_path_PCA = "model/best_model_structured_Low_Res_PCA"
 ```{python}
 performance_check(High_Res_structured_model_path, High_Res_test, Name = "High_Res_Base_Model_High_Res", cbar = False)
 performance_check(High_Res_structured_model_path_complex, High_Res_test_complex, Name = "High_Res_Extended_Model", cbar = False)
-performance_check(High_Res_structured_model_path_PCA , test_df_High_Res, PCA=True,  Name = "High_Res_PCA_Model", cbar = False)
+performance_check(High_Res_structured_model_path_PCA , test_df_High_Res,  Name = "High_Res_PCA_Model", cbar = False)
 
 # Mid_Res
 performance_check(Mid_Res_structured_model_path, Mid_Res_test, Name = "Mid_Res_Base_Model", cbar = False)
 performance_check(Mid_Res_structured_model_path_complex, Mid_Res_test_complex, Name = "Mid_Res_Extended_Model", cbar = False)
-performance_check(Mid_Res_structured_model_path_PCA , test_df_Mid_Res, PCA=True,  Name = "Mid_Res_PCA_Model", cbar = False)
+performance_check(Mid_Res_structured_model_path_PCA , test_df_Mid_Res, Name = "Mid_Res_PCA_Model", cbar = False)
 
 # Low_Res
 performance_check(Low_Res_structured_model_path, Low_Res_test, Name = "Low_Res_Base_Model", cbar = False)
 performance_check(Low_Res_structured_model_path_complex, Low_Res_test_complex,    Name = "Low_Res_Extended_Model", cbar = False)
-performance_check(Low_Res_structured_model_path_PCA , test_df_Low_Res, PCA=True,  Name = "Low_Res_PCA_Model", cbar = False)
+performance_check(Low_Res_structured_model_path_PCA , test_df_Low_Res,  Name = "Low_Res_PCA_Model", cbar = False)
 ```
 
 Multimodal model performance evaluation
 
 ```{python}
+import autokeras as ak
+from tensorflow.keras.models import load_model
 Res = "High" # "Mid" or "Low"
-Model = load_model(f"model/ak_transfer_model_{Res}_Res", custom_objects=ak.CUSTOM_OBJECTS)
+Model = load_model(f"model/ak_multimodal_model_{Res}_Res", custom_objects=ak.CUSTOM_OBJECTS)
 
 X_structured_test, y_structured_test_encoded = ak_load_data(  
   X_IMG_train = pickle.load(open(f"{data_folder}\X_image_train_{Res}_Res_img.pkl", 'rb')),

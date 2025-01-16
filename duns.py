@@ -103,7 +103,10 @@ def plot_confusion_matrix(y_true, y_pred_label, model_name=None, Name=None, cbar
 
 def performance_check(model_path, data_path, Name=None, cbar=True):
     model = load_model(model_path)
-    data = pd.read_csv(data_path)
+    try:
+        data = pd.read_csv(data_path)
+    except:
+        data = data_path
     predictions = predict_model(model, data=data)
     # Placeholder for your actual function to calculate metrics
     metrics = calculate_metrics(predictions)

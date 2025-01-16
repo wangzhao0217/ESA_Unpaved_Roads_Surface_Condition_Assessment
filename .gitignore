@@ -13,3 +13,6 @@ dist
 checkpoints
 ckpts*
 
+model/
+output/
+plot/
