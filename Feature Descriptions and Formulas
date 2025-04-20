@@ -1,0 +1,69 @@
+---
+title: "Summary of Colour and Texture Features Used in Image Analysis"
+format: html
+---
+
+## Summary Table
+
+| Feature           | Description                                                                                         | Formula |
+|------------------|-----------------------------------------------------------------------------------------------------|---------|
+| **Energy**        | Measures texture uniformity                                                                         | $ \text{Energy} = \sum_{i,j=0}^{N-1} P_{i,j} \cdot (-\ln P_{i,j}) $ |
+| **Homogeneity**   | Evaluates consistency or similarity in an image                                                     | $ \text{Homogeneity} = \sum_{i,j=0}^{N-1} \frac{P_{i,j}}{1 + (i + j)^2} $ |
+| **Contrast**      | Reflects local variation or intensity contrast                                                      | $ \text{Contrast} = \sum_{i,j=0}^{N-1} P_{i,j} (i - j)^2 $ |
+| **Correlation**   | Indicates relationship between local grayscale values; higher means greater similarity              | $ \text{Correlation} = \sum_{i,j=0}^{N-1} ij \cdot P_{i,j} - \mu_1 \mu_2 $ |
+| **Dissimilarity** | Measures relative distance between pixel pairs; inversely related to homogeneity                    | $ \text{Dissimilarity} = \sum_{i,j=0}^{N-1} P_{i,j} \cdot |i - j| $ |
+| **ASM**           | Measures textural uniformity and repetition of pixel pairs                                          | $ \text{ASM} = \sum_{i,j=0}^{N-1} P_{i,j}^2 $ |
+
+## HOG (Histogram of Oriented Gradients)
+
+- **Gradient computation:**  
+  $ \nabla I(x, y) = \left( \frac{\partial I}{\partial x}, \frac{\partial I}{\partial y} \right) $
+
+- **Gradient magnitude:**  
+  $ \text{mag}(x, y) = \sqrt{ \left( \frac{\partial I}{\partial x} \right)^2 + \left( \frac{\partial I}{\partial y} \right)^2 } $
+
+- **Gradient direction:**  
+  $ \theta(x, y) = \arctan\left( \frac{\partial I / \partial y}{\partial I / \partial x} \right) $
+
+- **Histogram bins:**  
+  $ H(i) = \sum_{(x, y) \in \text{Cell}_i} \text{mag}(x, y) \cdot \delta(\theta(x, y) - i) $
+
+## LBP (Local Binary Patterns)
+
+Describes texture by comparing each pixel with surrounding neighborhood.
+
+- **Formula:**  
+  $ \text{LBP}(x, y) = \sum_{k=0}^{P-1} s(I_k - I_c) \cdot 2^k $  
+  where  
+  $ s(x) = \begin{cases} 1, & \text{if } x \geq 0 \\ 0, & \text{if } x < 0 \end{cases} $
+
+## Colour Histograms
+
+Analyzes color distribution using histograms for each RGB channel (bin size: 256).
+
+- **Formula:**  
+  $ H_c(i) = \sum_{(x,y) \in \text{Image}} \delta(I_c(x,y) - i) $
+
+## Contour Detection
+
+Identifies structural features like cracks, potholes, and surface irregularities.
+
+- **Detection:**  
+  $ \text{Contours} = \text{findContours}(\text{Edges}) $  
+  (Edges from Canny detector)
+
+- **Contour area:**  
+  $ A = \sum_{i=1}^{N} \text{Area}(\text{Contour}_i) $
+
+## Fourier Transform
+
+Converts spatial representation into frequency domain to identify periodic patterns and anomalies.
+
+- **2D Fourier Transform:**  
+  $ F(u,v) = \sum_{x=0}^{M-1} \sum_{y=0}^{N-1} I(x, y) \cdot e^{-2\pi i \left(\frac{ux}{M} + \frac{vy}{N} \right)} $
+
+- **Magnitude Spectrum:**  
+  $ |F(u,v)| = \sqrt{ \text{Re}(F(u,v))^2 + \text{Im}(F(u,v))^2 } $
+
+- **Logarithmic Scaling:**  
+  $ \text{Log Spectrum} = 20 \cdot \log_{10}(1 + |F(u,v)|) $
